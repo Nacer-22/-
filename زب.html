@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPHA Animated Circle</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #0f0f13;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* حاوية الدائرة عشان نتحكمو في الحركة */
+        .circle-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 60vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* الدائرة الأساسية */
+        .animated-circle {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #ff0055, #0066ff);
+            border-radius: 50%;
+            box-shadow: 0 0 30px rgba(255, 0, 85, 0.6), 
+                        inset 0 0 20px rgba(255, 255, 255, 0.3);
+            position: absolute;
+            /* الأنيميشن الأساسي: تكبر وتتحرك */
+            animation: growAndMove 3s ease-in-out infinite alternate;
+            transition: transform 0.3s ease;
+        }
+
+        /* تكبر وتتحرك يمينا ويسارا ثم فوق وتحت */
+        @keyframes growAndMove {
+            0% {
+                transform: scale(1) translate(0, 0);
+            }
+            25% {
+                transform: scale(1.5) translate(150px, 0); /* يمين */
+            }
+            50% {
+                transform: scale(2) translate(0, -100px); /* فوق */
+            }
+            75% {
+                transform: scale(1.5) translate(-150px, 0); /* يسار */
+            }
+            100% {
+                transform: scale(1) translate(0, 100px); /* تحت */
+            }
+        }
+
+        /* كلاسات الدوران اللي كتزيد على الأنيميشن الأساسي */
+        .spin-right {
+            animation: growAndMove 3s ease-in-out infinite alternate,
+                       spinRight 1.5s linear infinite !important;
+        }
+
+        .spin-left {
+            animation: growAndMove 3s ease-in-out infinite alternate,
+                       spinLeft 1.5s linear infinite !important;
+        }
+
+        .spin-full {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            width: 150px !important;
+            height: 150px !important;
+            margin: -75px 0 0 -75px;
+            animation: spinFullScreen 4s linear infinite !important;
+            z-index: 1000;
+        }
+
+        @keyframes spinRight {
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes spinLeft {
+            100% { transform: rotate(-360deg); }
+        }
+
+        /* دوران على كامل الشاشة (يدور حول مركز الشاشة) */
+        @keyframes spinFullScreen {
+            0% {
+                transform: rotate(0deg) translateX(25vw) scale(1.2);
+            }
+            100% {
+                transform: rotate(360deg) translateX(25vw) scale(1.2);
+            }
+        }
+
+        /* حاوية الأزرار */
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            display: flex;
+            gap: 15px;
+            z-index: 2000;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #fff;
+        }
+
+        .btn-right {
+            background: linear-gradient(135deg, #00cc88, #00ffaa);
+            box-shadow: 0 4px 15px rgba(0, 204, 136, 0.4);
+        }
+
+        .btn-left {
+            background: linear-gradient(135deg, #cc8800, #ffaa00);
+            box-shadow: 0 4px 15px rgba(204, 136, 0, 0.4);
+        }
+
+        .btn-full {
+            background: linear-gradient(135deg, #aa00ff, #ff00aa);
+            box-shadow: 0 4px 15px rgba(170, 0, 255, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px) scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        /* زر إعادة ضبط (اختياري) */
+        .btn-reset {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- زر إعادة الضبط -->
+    <button class="btn btn-reset" onclick="resetCircle()">إعادة ضبط</button>
+
+    <!-- حاوية الدائرة -->
+    <div class="circle-wrapper">
+        <div class="animated-circle" id="mainCircle"></div>
+    </div>
+
+    <!-- الأزرار -->
+    <div class="controls">
+        <button class="btn btn-right" onclick="spinRight()">دوران لليمين</button>
+        <button class="btn btn-left" onclick="spinLeft()">دوران لليسار</button>
+        <button class="btn btn-full" onclick="spinFullScreen()">دوران كامل الشاشة</button>
+    </div>
+
+    <script>
+        const circle = document.getElementById('mainCircle');
+
+        function clearAnimations() {
+            circle.className = 'animated-circle';
+            circle.style.cssText = ''; // مسح أي أنماط سابقة
+        }
+
+        function spinRight() {
+            clearAnimations();
+            // نضيف كلاس الدوران لليمين مع الحفاظ على أنيميشن التكبير
+            circle.classList.add('spin-right');
+        }
+
+        function spinLeft() {
+            clearAnimations();
+            // نضيف كلاس الدوران لليسار
+            circle.classList.add('spin-left');
+        }
+
+        function spinFullScreen() {
+            clearAnimations();
+            // نضيف كلاس الدوران على كامل الشاشة
+            circle.classList.add('spin-full');
+        }
+
+        function resetCircle() {
+            clearAnimations();
+        }
+    </script>
+</body>
+</html>
