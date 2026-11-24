@@ -57,13 +57,47 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
+      - name: Apply Godot 4 compatibility fixes and mobile texture settings
+        working-directory: HAX_ROYALE_NATIVE
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          script = Path("scripts/game.gd")
+          source = script.read_text()
+          replacements = {
+              "var crown_mesh := ConeMesh.new(); crown_mesh.top_radius = 0.05; crown_mesh.bottom_radius = 2.25; crown_mesh.height = 5.4; crown_mesh.radial_segments = 7":
+              "var crown_mesh := CylinderMesh.new(); crown_mesh.top_radius = 0.05; crown_mesh.bottom_radius = 2.25; crown_mesh.height = 5.4; crown_mesh.radial_segments = 7",
+              'var kind := ["ammo","armor","med","weapon"][rng.randi_range(0,3)]':
+              'var kind: String = ["ammo","armor","med","weapon"][rng.randi_range(0,3)]',
+              'var headshot := hit_pos.y > (b["node"].global_position.y+1.73)':
+              'var headshot: bool = hit_pos.y > (b["node"].global_position.y+1.73)',
+              'var needed := int(w["mag"])-magazine[weapon_index]':
+              'var needed: int = int(w["mag"])-magazine[weapon_index]',
+          }
+          for old, new in replacements.items():
+              if old not in source:
+                  raise SystemExit("Expected compatibility pattern not found: " + old)
+              source = source.replace(old, new, 1)
+          script.write_text(source)
+          project = Path("project.godot")
+          settings = project.read_text()
+          needle = "lights_and_shadows/use_physical_light_units=false"
+          if needle not in settings:
+              raise SystemExit("Could not locate rendering settings")
+          settings = settings.replace(needle, needle + "\ntextures/vram_compression/import_etc2_astc=true", 1)
+          project.write_text(settings)
+          PY
       - name: Import and validate Godot project
         working-directory: HAX_ROYALE_NATIVE
+        shell: bash
         run: |
           test -f assets/icon.svg
           godot --version
-          godot --headless --editor --path . --import --quit
-          godot --headless --path . --quit-after 2
+          godot --headless --editor --path . --import --quit 2>&1 | tee /tmp/godot-import.log
+          if grep -Eq "SCRIPT ERROR|Parse Error|ERROR:" /tmp/godot-import.log; then exit 1; fi
+          godot --headless --path . --quit-after 3 2>&1 | tee /tmp/godot-run.log
+          if grep -Eq "SCRIPT ERROR|Parse Error|ERROR:" /tmp/godot-run.log; then exit 1; fi
       - name: Export APK, enforce size limit and verify signature
         working-directory: HAX_ROYALE_NATIVE
         run: |
