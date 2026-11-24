@@ -1,0 +1,82 @@
+name: HAX ROYALE Android APK
+on:
+  push:
+    branches: [hax-royale-native]
+    paths:
+      - 'source64/**'
+      - '.github/workflows/hax-royale-android.yml'
+      - 'HAX_ROYALE_NATIVE/assets/icon.svg'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble and extract native Godot project
+        shell: bash
+        run: |
+          cat source64/*.part > /tmp/hax-source.b64
+          test "$(wc -c < /tmp/hax-source.b64)" -eq 20420
+          base64 --decode /tmp/hax-source.b64 > /tmp/hax-source.tar.gz
+          test "$(stat -c%s /tmp/hax-source.tar.gz)" -eq 15315
+          tar -tzf /tmp/hax-source.tar.gz
+          tar -xzf /tmp/hax-source.tar.gz
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1"
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+      - name: Configure Godot Android SDK and debug signing
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot" "$HOME/.android"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EOF
+          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
+      - name: Import and validate Godot project
+        working-directory: HAX_ROYALE_NATIVE
+        run: |
+          test -f assets/icon.svg
+          godot --version
+          godot --headless --editor --path . --import --quit
+          godot --headless --path . --quit-after 2
+      - name: Export APK, enforce size limit and verify signature
+        working-directory: HAX_ROYALE_NATIVE
+        run: |
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/HAX_ROYALE_REBUILT.apk
+          test -s build/HAX_ROYALE_REBUILT.apk
+          APK_SIZE=$(stat -c%s build/HAX_ROYALE_REBUILT.apk)
+          echo "APK_SIZE_BYTES=$APK_SIZE"
+          test "$APK_SIZE" -le 188743680
+          unzip -t build/HAX_ROYALE_REBUILT.apk
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose build/HAX_ROYALE_REBUILT.apk
+          sha256sum build/HAX_ROYALE_REBUILT.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HAX-ROYALE-ANDROID-APK
+          path: HAX_ROYALE_NATIVE/build/HAX_ROYALE_REBUILT.apk
+          if-no-files-found: error
+          retention-days: 30
